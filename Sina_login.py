@@ -9,22 +9,23 @@ import re
 import json
 import rsa
 import binascii
-#import requests
-#from bs4 import BeautifulSoup
+import logging
+#　import requests
+#　from bs4 import BeautifulSoup
 
-#新浪微博的模拟登陆
+#　新浪微博的模拟登陆
 class weiboLogin:
     def enableCookies(self):
-        #获取一个保存cookies的对象
+        #　获取一个保存cookies的对象
         cj = cookielib.CookieJar()
-        #将一个保存cookies对象和一个HTTP的cookie的处理器绑定
+        #　将一个保存cookies对象和一个HTTP的cookie的处理器绑定
         cookie_support = urllib2.HTTPCookieProcessor(cj)
-        #创建一个opener,设置一个handler用于处理http的url打开
+        #　创建一个opener,设置一个handler用于处理http的url打开
         opener = urllib2.build_opener(cookie_support, urllib2.HTTPHandler)
-        #安装opener，此后调用urlopen()时会使用安装过的opener对象
+        #　安装opener，此后调用urlopen()时会使用安装过的opener对象
         urllib2.install_opener(opener)
 
-    #预登陆获得 servertime, nonce, pubkey, rsakv
+    #　预登陆获得 servertime, nonce, pubkey, rsakv
     def getServerData(self):
         url = 'http://login.sina.com.cn/sso/prelogin.php?entry=weibo&callback=sinaSSOController.preloginCallBack&su=ZW5nbGFuZHNldSU0MDE2My5jb20%3D&rsakt=mod&checkpin=1&client=ssologin.js(v1.4.18)&_=1442991685270'
         data = urllib2.urlopen(url).read()
@@ -41,23 +42,22 @@ class weiboLogin:
                 print 'Get severtime error!'
                 return None
                 
-
-    #获取加密的密码
+    #　获取加密的密码
     def getPassword(self, password, servertime, nonce, pubkey):
         rsaPublickey = int(pubkey, 16)
-        key = rsa.PublicKey(rsaPublickey, 65537) #创建公钥
-        message = str(servertime) + '\t' + str(nonce) + '\n' + str(password) #拼接明文js加密文件中得到
-        passwd = rsa.encrypt(message, key) #加密
-        passwd = binascii.b2a_hex(passwd) #将加密信息转换为16进制。
+        key = rsa.PublicKey(rsaPublickey, 65537)            #　创建公钥
+        message = str(servertime) + '\t' + str(nonce) + '\n' + str(password) #　拼接明文js加密文件中得到
+        passwd = rsa.encrypt(message, key)                  #　加密
+        passwd = binascii.b2a_hex(passwd)                   #　将加密信息转换为16进制。
         return passwd
 
-    #获取加密的用户名
+    #　获取加密的用户名
     def getUsername(self, username):
         username_ = urllib.quote(username)
         username = base64.encodestring(username_)[:-1]
         return username
 
-     #获取需要提交的表单数据   
+     #　获取需要提交的表单数据   
     def getFormData(self,userName,password,servertime,nonce,pubkey,rsakv):
         userName = self.getUsername(userName)
         psw = self.getPassword(password,servertime,nonce,pubkey)
@@ -86,7 +86,7 @@ class weiboLogin:
         formData = urllib.urlencode(form_data)
         return formData
 
-    #登陆函数
+    #　登陆函数
     def login(self,username,psw):
         self.enableCookies()
         url = 'http://login.sina.com.cn/sso/login.php?client=ssologin.js(v1.4.18)'
@@ -100,31 +100,61 @@ class weiboLogin:
         )
         result = urllib2.urlopen(req)
         text = result.read()
-        print text
-        #还没完！！！这边有一个重定位网址，包含在脚本中，获取到之后才能真正地登陆
+
+        #　重定位网址，包含在脚本中，获取到之后才能真正地登陆
         p = re.compile('location\.replace\([\'"](.*?)[\'"]\)')
         try:
                 login_url = p.search(text).group(1)
-                print login_url
                 #由于之前的绑定，cookies信息会直接写入
                 urllib2.urlopen(login_url)
-                print "Login success!"
+                logging.info("Login success!")
         except:
-                print 'Login error!'
+                logging.info('Login error!')
                 return 0
 
-        #访问主页，把主页写入到文件中
-        url = 'http://weibo.com/p/1005051910440104/info'
-        request = urllib2.Request(url)
-        response = urllib2.urlopen(request)
-        text = response.read()
-        fp_raw = open("weibo.html","w+")
-        fp_raw.write(text)
-        fp_raw.close()
-        #print text
-            
-wblogin = weiboLogin()
-print 'sina login...'
-username = raw_input(u'username:')
-password = raw_input(u'password:')
-wblogin.login(username,password)
+def catch_person_info(url):
+    #　访问主页，把主页写入到文件中
+    request = urllib2.Request(url)
+    response = urllib2.urlopen(request)
+    text = response.read()
+
+    p = re.compile("<script>FM.view.*</script>")
+    match = p.findall(text)
+    for eachFm in match:
+        if "Pl_Official_PersonalInfo__58" in eachFm:
+            index = eachFm.find("html")
+            eachFm = eachFm[index+9:-12]
+            eachFm = js_fmview2html(eachFm)
+            save_file("tmp.html", eachFm)
+
+def js_fmview2html(text):
+    '''
+        网页中<script>FM.view内代码转换为HTML
+    '''
+    text = text.replace("\\t", "")
+    text = text.replace("\\n", "")
+    text = text.replace("\\r", "")
+    text = text.replace("\\/", "")
+
+    return text
+
+def save_file(filename, text):
+    '''
+        text保存到文件
+    '''
+    fp = open(filename, "wb+")
+    fp.write(text)
+    fp.close()
+
+if __name__ == "__main__":
+    #　日志配置
+    logging.basicConfig(format='%(asctime)s  %(levelname)s : %(message)s', level=logging.INFO)
+
+    wblogin = weiboLogin()
+    print 'sina login...'
+    username = raw_input(u'username:')
+    password = raw_input(u'password:')
+    wblogin.login(username,password)
+
+    url = 'http://weibo.com/p/1005051910440104/info'
+    catch_person_info(url)
