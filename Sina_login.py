@@ -10,6 +10,7 @@ import json
 import rsa
 import binascii
 import logging
+import lxml.html as HTML
 #　import requests
 #　from bs4 import BeautifulSoup
 
@@ -113,29 +114,59 @@ class weiboLogin:
                 return 0
 
 def catch_person_info(url):
-    #　访问主页，把主页写入到文件中
+    '''
+        CATCH个人信息
+    '''
     request = urllib2.Request(url)
     response = urllib2.urlopen(request)
     text = response.read()
 
+    # 提取个人信息代码
+    html = ""
     p = re.compile("<script>FM.view.*</script>")
     match = p.findall(text)
     for eachFm in match:
-        if "Pl_Official_PersonalInfo__58" in eachFm:
+        if "Pl_Official_PersonalInfo__58" in eachFm and \
+            "main_title W_fb W_f14" in eachFm:
             index = eachFm.find("html")
             eachFm = eachFm[index+9:-12]
             eachFm = js_fmview2html(eachFm)
-            save_file("tmp.html", eachFm)
+            html = eachFm
+            break
 
+    doc = HTML.fromstring(unicode(html, "utf-8"))
+
+    # 基本信息
+    data_1 = doc.xpath(
+        '//div[1][@class="WB_cardwrap S_bg2"]//div[@class="PCD_text_b PCD_text_b2"]//' + \
+            'div[@class="WB_innerwrap"]//div//ul'
+    )
+    if 0 == len(data_1):            # 没有找到
+        return
+    
+    name = data_1[0].xpath('li[1]//span[2]/text()')
+    address = data_1[0].xpath('li[2]//span[2]/text()')
+    sex = data_1[0].xpath('li[3]//span[2]/text()')
+    blog = data_1[0].xpath('li[4]//a/text()')
+    brif_introduction = data_1[0].xpath('li[6]//span[2]/text()')
+    create_time = data_1[0].xpath('li[7]//span[2]/text()')
+
+    print name[0] if 0!=len(name) else ""
+    print address[0] if 0!=len(address) else ""
+    print sex[0] if 0!=len(sex) else ""
+    print blog[0] if 0!=len(blog) else ""
+    print brif_introduction[0].strip() if 0!=len(brif_introduction) else ""
+    print create_time[0].strip() if 0!=len(create_time) else ""
+    
 def js_fmview2html(text):
     '''
         网页中<script>FM.view内代码转换为HTML
     '''
-    text = text.replace("\\t", "")
-    text = text.replace("\\n", "")
+    text = text.replace("\\t", "\t")
+    text = text.replace("\\n", "\n")
     text = text.replace("\\r", "")
-    text = text.replace("\\/", "")
-
+    text = text.replace("\\/", "/")
+    text = text.replace("\\\"", "\"")
     return text
 
 def save_file(filename, text):
