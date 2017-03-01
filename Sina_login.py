@@ -121,6 +121,14 @@ def catch_person_info(url):
     response = urllib2.urlopen(request)
     text = response.read()
 
+    # 提取关注和粉丝页面
+    page_id_start = text.find("['page_id']=")
+    page_id_end = text.find("';", page_id_start)
+    page_id = text[page_id_start+13:page_id_end]
+
+    fans_url = "http://weibo.com/p/" + page_id + "/follow?relate=fans&"
+    follow_url = "http://weibo.com/p/" + page_id + "/follow?"
+
     # 提取个人信息代码
     html = ""
     p = re.compile("<script>FM.view.*</script>")
