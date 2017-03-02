@@ -115,7 +115,7 @@ class weiboLogin:
 
 def catch_person_info(url):
     '''
-        CATCH个人信息
+        catch person info
     '''
     request = urllib2.Request(url)
     response = urllib2.urlopen(request)
@@ -165,7 +165,32 @@ def catch_person_info(url):
     print blog[0] if 0!=len(blog) else ""
     print brif_introduction[0].strip() if 0!=len(brif_introduction) else ""
     print create_time[0].strip() if 0!=len(create_time) else ""
-    
+
+def catch_follows(url):
+    '''
+        catch follows URL
+    '''
+    request = urllib2.Request(url)
+    response = urllib2.urlopen(request)
+    text = response.read()
+
+    # 提取已关注人信息的代码
+    html = ""
+    p = re.compile("<script>FM.view.*</script>")
+    match = p.findall(text)
+    for eachFm in match:
+        if "followTab" in eachFm:
+            index = eachFm.find("html")
+            eachFm = eachFm[index+7:-12]
+            eachFm = js_fmview2html(eachFm)
+            html = eachFm
+            break
+
+    doc = HTML.fromstring(unicode(html, "utf-8"))
+    data = doc.xpath('//li[@class="follow_item S_line2"]/@action-data')
+    for i in data:
+        print i
+
 def js_fmview2html(text):
     '''
         网页中<script>FM.view内代码转换为HTML
@@ -195,5 +220,11 @@ if __name__ == "__main__":
     password = raw_input(u'password:')
     wblogin.login(username,password)
 
-    url = 'http://weibo.com/p/1005051910440104/info'
-    catch_person_info(url)
+    info_url = 'http://weibo.com/p/1005051910440104/info'
+    follows_url = 'http://weibo.com/p/1005051910440104/follow?page=1'
+    fans_url = 'http://weibo.com/p/1005051910440104/follow?relate=fans&page=1'
+
+    catch_person_info(info_url)
+    catch_follows(follows_url)
+
+    print "END!"
